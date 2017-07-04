@@ -2,7 +2,7 @@ module particle_header
 
   use bank_header,     only: Bank
   use constants,       only: NEUTRON, ONE, NONE, ZERO, MAX_SECONDARY, &
-                             MAX_DELAYED_GROUPS, MAX_COORD
+                             MAX_DELAYED_GROUPS!, MAX_COORD
   use error,           only: fatal_error
   use geometry_header, only: BASE_UNIVERSE
 
