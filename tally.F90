@@ -5,7 +5,7 @@ module tally
   use error,            only: fatal_error
   use geometry_header
   use global
-  use math,             only: t_percentile, calc_pn, calc_rn
+  use math,             only: t_percentile, calc_pn, calc_rn,Gauss_Legendre_Integral_Define
   use mesh,             only: get_mesh_bin, bin_to_mesh_indices, &
                               get_mesh_indices, mesh_indices_to_bin, &
                               mesh_intersects_2d, mesh_intersects_3d
@@ -1493,6 +1493,14 @@ contains
     type(TallyObject), pointer :: t
     type(RegularMesh), pointer :: m
     type(Material), pointer :: mat
+    real(8),allocatable :: x(:), wtt(:) ! for gauss integral
+    real(8) :: pn_xyz0(2), pn_xyz1(2)   ! coordinate transform for FET
+    real(8) :: width=21.42_8                    ! mesh with for FET
+    integer :: order_higher, order_integral, order
+    integer :: fet_order_x, fet_order_y
+    !real(8) :: f                       ! coordinate transform to [-1,1]
+    !real(8) :: xx
+
 
     t => tallies(i_tally)
     matching_bins(1:t%n_filters) = 1
@@ -1683,7 +1691,202 @@ contains
 
         ! Determine mesh bin
         matching_bins(i_filter_mesh) = mesh_indices_to_bin(m, ijk_cross)
+!>=============================================================================
+! 2d FET tally test
+!>=============================================================================
 
+        pn_xyz0(1:2) = xyz0(1:2) - m % width(1:2) * (ijk_cross(1:2) - 1)
+        !pn_xyz1(1:2) = xyz0(1:2) + distance * uvw(1:2) - m % width(1:2) * (ijk_cross(1:2) - 1)
+        pn_xyz1(1:2) = pn_xyz0(1:2) + distance * uvw(1:2)
+!        ! 0 0 order
+!          ! original form
+!        
+!        ! 0 1 order
+!        allocate(x(1),wtt(1))
+!        if(uvw(1)==uvw(2).and.uvw(1)==0.0)then
+!            flux = flux * calc_pn(1,f(pn_xyz0(2)))
+!        elseif(uvw(1)>uvw(2))then
+!            call Gauss_Legendre_Integral_Define(1,X,WTT,pn_xyz0(1),pn_xyz1(1))
+!            flux = flux * sum(wtt(:)*f(uvw(2)/uvw(1)*(x(:)-pn_xyz0(1))+pn_xyz0(2)))  / (pn_xyz1(1)-pn_xyz0(1))
+!        elseif(uvw(1)<uvw(2))then
+!            call Gauss_Legendre_Integral_Define(1,X,WTT,pn_xyz0(2),pn_xyz1(2))
+!            flux = flux * sum(wtt(:)*f(x(:)))  / (pn_xyz1(2)-pn_xyz0(2))
+!        endif
+!        deallocate(x,wtt)
+        
+        ! if(uvw(1)==uvw(2).and.uvw(1)==0.0)then
+        !     flux = flux * pn_xyz0(2)
+        ! elseif(uvw(1)>uvw(2))then
+        !     flux = flux * 0.5_8*(&
+        !         f(pn_xyz1(2))**2-&
+        !         f(pn_xyz0(2))**2)/&
+        !         (pn_xyz1(1)-pn_xyz0(1))
+        ! elseif(uvw(1)<uvw(2))then
+        !     flux = flux * 0.5_8*(&
+        !         pn_xyz1(2)**2-&
+        !         pn_xyz0(2)**2)/&
+        !         (pn_xyz1(2)-pn_xyz0(2))
+        ! endif
+        
+        
+        ! 1 0 order
+!        allocate(x(1),wtt(1))
+!        if(uvw(1)==uvw(2).and.uvw(1)==0.0)then
+!            flux = flux * calc_pn(1,f(pn_xyz0(1)))
+!        elseif(uvw(1)>uvw(2))then
+!            call Gauss_Legendre_Integral_Define(1,X,WTT,pn_xyz0(1),pn_xyz1(1))
+!            flux = flux * sum(wtt(:)*f((x(:))))  / (pn_xyz1(1)-pn_xyz0(1))
+!        elseif(uvw(1)<uvw(2))then
+!            call Gauss_Legendre_Integral_Define(1,X,WTT,pn_xyz0(2),pn_xyz1(2))
+!            flux = flux * sum(wtt(:)*f(uvw(1)/uvw(2)*(x(:)-pn_xyz0(2))+pn_xyz0(1)))  / (pn_xyz1(2)-pn_xyz0(2))
+!        endif
+!        deallocate(x,wtt)
+!        
+        ! 1 1 order
+!        allocate(x(1),wtt(1))
+!        
+!        if(uvw(1)==uvw(2).and.uvw(1)==0.0)then
+!            flux = flux * calc_pn(1,f(pn_xyz0(1)))*calc_pn(1,f(pn_xyz0(2)))
+!        elseif(uvw(1)>uvw(2))then
+!            call Gauss_Legendre_Integral_Define(1,X,WTT,pn_xyz0(1),pn_xyz1(1))
+!            flux = flux * sum(wtt(:)*f((x(:)))*f(uvw(2)/uvw(1)*(x(:)-pn_xyz0(1))+pn_xyz0(2)))  / (pn_xyz1(1)-pn_xyz0(1))
+!        elseif(uvw(1)<uvw(2))then
+!            call Gauss_Legendre_Integral_Define(1,X,WTT,pn_xyz0(2),pn_xyz1(2))
+!            flux = flux * sum(wtt(:)*f(x(:))*f(uvw(1)/uvw(2)*(x(:)-pn_xyz0(2))+pn_xyz0(1)))  / (pn_xyz1(2)-pn_xyz0(2))
+!        endif
+!        deallocate(x,wtt)
+        
+        ! 0 2 order
+!        allocate(x(2),wtt(2))
+!        if(uvw(1)==uvw(2).and.uvw(1)==0.0)then
+!            flux = flux * calc_pn(2,f(pn_xyz0(2)))
+!        elseif(uvw(1)>uvw(2))then
+!            call Gauss_Legendre_Integral_Define(2,X,WTT,pn_xyz0(1),pn_xyz1(1))
+!            flux = flux * sum(wtt(:)* &
+!             calc_pn(2,f(uvw(2)/uvw(1)*(x(:)-pn_xyz0(1))+pn_xyz0(2))))  / (pn_xyz1(1)-pn_xyz0(1))
+!        elseif(uvw(1)<uvw(2))then
+!            call Gauss_Legendre_Integral_Define(2,X,WTT,pn_xyz0(2),pn_xyz1(2))
+!            flux = flux * sum(wtt(:)*calc_pn(2,f(x(:))) &
+!             )  / (pn_xyz1(2)-pn_xyz0(2))
+!        endif 
+!            deallocate(x,wtt)
+        
+        ! 2 0 order
+!        allocate(x(2),wtt(2))
+!        if(uvw(1)==uvw(2).and.uvw(1)==0.0)then
+!            flux = flux * calc_pn(2,f(pn_xyz0(1)))
+!        elseif(uvw(1)>uvw(2))then
+!            call Gauss_Legendre_Integral_Define(2,X,WTT,pn_xyz0(1),pn_xyz1(1))
+!            flux = flux * sum(wtt(:)*calc_pn(2,f((x(:)))) &
+!             )  / (pn_xyz1(1)-pn_xyz0(1))
+!        elseif(uvw(1)<uvw(2))then
+!            call Gauss_Legendre_Integral_Define(2,X,WTT,pn_xyz0(2),pn_xyz1(2))
+!            flux = flux * sum(wtt(:) * &
+!             calc_pn(2,f(uvw(1)/uvw(2)*(x(:)-pn_xyz0(2))+pn_xyz0(1))))  / (pn_xyz1(2)-pn_xyz0(2))
+!        endif
+!        
+!            deallocate(x,wtt)
+        
+        ! 1 2 order
+!        allocate(x(2),wtt(2))
+!        if(uvw(1)==uvw(2).and.uvw(1)==0.0)then
+!            flux = flux * calc_pn(1,f(pn_xyz0(1)))*calc_pn(2,f(pn_xyz0(2)))
+!        elseif(uvw(1)>uvw(2))then
+!            call Gauss_Legendre_Integral_Define(2,X,WTT,pn_xyz0(1),pn_xyz1(1))
+!            flux = flux * sum(wtt(:)*calc_pn(1,f((x(:))))* &
+!             calc_pn(2,f(uvw(2)/uvw(1)*(x(:)-pn_xyz0(1))+pn_xyz0(2))))  / (pn_xyz1(1)-pn_xyz0(1))
+!        elseif(uvw(1)<uvw(2))then
+!            call Gauss_Legendre_Integral_Define(2,X,WTT,pn_xyz0(2),pn_xyz1(2))
+!            flux = flux * sum(wtt(:)*calc_pn(2,f(x(:)))* &
+!             calc_pn(1,f(uvw(1)/uvw(2)*(x(:)-pn_xyz0(2))+pn_xyz0(1))))  / (pn_xyz1(2)-pn_xyz0(2))
+!        endif
+!        
+!            deallocate(x,wtt)
+        
+        ! 2 1 order
+!        allocate(x(2),wtt(2))
+!        if(uvw(1)==uvw(2).and.uvw(1)==0.0)then
+!            flux = flux * calc_pn(2,f(pn_xyz0(1)))*calc_pn(1,f(pn_xyz0(2)))
+!        elseif(uvw(1)>uvw(2))then
+!            call Gauss_Legendre_Integral_Define(2,X,WTT,pn_xyz0(1),pn_xyz1(1))
+!            flux = flux * sum(wtt(:)*calc_pn(2,f((x(:))))* &
+!             calc_pn(1,f(uvw(2)/uvw(1)*(x(:)-pn_xyz0(1))+pn_xyz0(2))))  / (pn_xyz1(1)-pn_xyz0(1))
+!        elseif(uvw(1)<uvw(2))then
+!            call Gauss_Legendre_Integral_Define(2,X,WTT,pn_xyz0(2),pn_xyz1(2))
+!            flux = flux * sum(wtt(:)*calc_pn(1,f(x(:)))* &
+!             calc_pn(2,f(uvw(1)/uvw(2)*(x(:)-pn_xyz0(2))+pn_xyz0(1))))  / (pn_xyz1(2)-pn_xyz0(2))
+!        endif
+!        
+!            deallocate(x,wtt)
+            
+        ! 2 2 order
+!        allocate(x(2),wtt(2))
+!        if(uvw(1)==uvw(2).and.uvw(1)==0.0)then
+!            flux = flux * calc_pn(2,f(pn_xyz0(1)))*calc_pn(2,f(pn_xyz0(2)))
+!        elseif(uvw(1)>uvw(2))then
+!            call Gauss_Legendre_Integral_Define(2,X,WTT,pn_xyz0(1),pn_xyz1(1))
+!            flux = flux * sum(wtt(:)*calc_pn(2,f((x(:))))* &
+!             calc_pn(2,f(uvw(2)/uvw(1)*(x(:)-pn_xyz0(1))+pn_xyz0(2))))  / (pn_xyz1(1)-pn_xyz0(1))
+!        elseif(uvw(1)<uvw(2))then
+!            call Gauss_Legendre_Integral_Define(2,X,WTT,pn_xyz0(2),pn_xyz1(2))
+!            flux = flux * sum(wtt(:)*calc_pn(2,f(x(:)))* &
+!             calc_pn(2,f(uvw(1)/uvw(2)*(x(:)-pn_xyz0(2))+pn_xyz0(1))))  / (pn_xyz1(2)-pn_xyz0(2))
+!        endif
+!        
+!            deallocate(x,wtt)
+        
+        ! 0 3
+!        allocate(x(2),wtt(2))
+!        if(uvw(1)==uvw(2).and.uvw(1)==0.0)then
+!            flux = flux * calc_pn(3,f(pn_xyz0(2)))
+!        elseif(uvw(1)>uvw(2))then
+!            call Gauss_Legendre_Integral_Define(2,X,WTT,pn_xyz0(1),pn_xyz1(1))
+!            flux = flux * sum(wtt(:)* &
+!             calc_pn(3,f(uvw(2)/uvw(1)*(x(:)-pn_xyz0(1))+pn_xyz0(2))))  / (pn_xyz1(1)-pn_xyz0(1))
+!        elseif(uvw(1)<uvw(2))then
+!            call Gauss_Legendre_Integral_Define(2,X,WTT,pn_xyz0(2),pn_xyz1(2))
+!            flux = flux * sum(wtt(:)*calc_pn(3,f(x(:))) &
+!             )  / (pn_xyz1(2)-pn_xyz0(2))
+!        endif
+!        deallocate(x,wtt)
+!        
+!        !order 3 0
+!        allocate(x(2),wtt(2))
+!        if(uvw(1)==uvw(2).and.uvw(1)==0.0)then
+!            flux = flux * calc_pn(3,f(pn_xyz0(1)))
+!        elseif(uvw(1)>uvw(2))then
+!            call Gauss_Legendre_Integral_Define(2,X,WTT,pn_xyz0(1),pn_xyz1(1))
+!            flux = flux * sum(wtt(:)*calc_pn(3,f((x(:)))) &
+!             )  / (pn_xyz1(1)-pn_xyz0(1))
+!        elseif(uvw(1)<uvw(2))then
+!            call Gauss_Legendre_Integral_Define(2,X,WTT,pn_xyz0(2),pn_xyz1(2))
+!            flux = flux * sum(wtt(:)* &
+!             calc_pn(3,f(uvw(1)/uvw(2)*(x(:)-pn_xyz0(2))+pn_xyz0(1))))  / (pn_xyz1(2)-pn_xyz0(2))
+!        endif
+!        
+!            deallocate(x,wtt)
+        
+        !order 1 3
+            ! temp assign
+            fet_order_x = 3
+            fet_order_y = 1
+        order_higher = max(fet_order_x, fet_order_y)
+        order_integral = nint((order_higher+1)/2.0)
+        allocate(x(order_integral),wtt(order_integral))
+        if(uvw(1)==uvw(2).and.uvw(1)==0.0)then
+            flux = flux * calc_pn(fet_order_x,f(pn_xyz0(1)))*calc_pn(fet_order_y,f(pn_xyz0(2)))
+        elseif(uvw(1)>uvw(2))then
+            call Gauss_Legendre_Integral_Define(order_integral,X,WTT,pn_xyz0(1),pn_xyz1(1))
+            flux = flux * sum(wtt(:)*calc_pn(fet_order_x,f((x(:))))* &
+             calc_pn(fet_order_y,f(uvw(2)/uvw(1)*(x(:)-pn_xyz0(1))+pn_xyz0(2))))  / (pn_xyz1(1)-pn_xyz0(1))
+        elseif(uvw(1)<uvw(2))then
+            call Gauss_Legendre_Integral_Define(order_integral,X,WTT,pn_xyz0(2),pn_xyz1(2))
+            flux = flux * sum(wtt(:)*calc_pn(fet_order_y,f(x(:)))* &
+             calc_pn(fet_order_x,f(uvw(1)/uvw(2)*(x(:)-pn_xyz0(2))+pn_xyz0(1))))  / (pn_xyz1(2)-pn_xyz0(2))
+        endif
+        
+            deallocate(x,wtt)
+!>=============================================================================
         ! Determining scoring index
         filter_index = sum((matching_bins(1:t%n_filters) - 1) * t % stride) + 1
 
@@ -1734,7 +1937,18 @@ contains
       xyz0 = xyz0 + distance * uvw
 
     end do MESH_LOOP
-
+  contains
+  !>===========================================================================
+  ! for coordinate transform to [-1,1]
+  ! used in FET
+  !>===========================================================================
+  elemental function f(x)
+      real(8) :: f
+      real(8),intent(in) :: x
+      ! the FET grid should be symmetric around the origin
+      f = 2 * x /width !- 1.0_8
+  end function
+  
   end subroutine score_tl_on_mesh
 
 !===============================================================================
