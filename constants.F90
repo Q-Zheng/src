@@ -40,7 +40,7 @@ module constants
   integer, parameter :: MAX_EVENTS = 10000
   integer, parameter :: MAX_SAMPLE = 100000000
   
-  integer, parameter :: MAX_COORD  = 10
+  !integer, parameter :: MAX_COORD  = 10
 
   ! Maximum number of secondary particles created
   integer, parameter :: MAX_SECONDARY = 1000
