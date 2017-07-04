@@ -50,7 +50,7 @@ contains
 !===============================================================================
 
   subroutine initialize_run()
-
+open(1,file='compare')
     ! Start total and initialization timer
     call time_total%start()
     call time_initialize%start()

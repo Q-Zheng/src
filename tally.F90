@@ -961,6 +961,7 @@ contains
                % results(score_index: score_index + num_nm - 1, filter_index)&
                % value &
                + score * calc_rn(n, uvw)
+
 !$omp end critical (score_general_flux_tot_yn)
         end do
         i = i + (t % moment_order(i) + 1)**2 - 1
@@ -1493,7 +1494,7 @@ contains
     type(TallyObject), pointer :: t
     type(RegularMesh), pointer :: m
     type(Material), pointer :: mat
-
+real(8) :: x_pn, pn_xyz1(3), pn_xyz0(3) ! added by zhengqi 2017.05.09 for FET calc_pn(n,x_pn)
     t => tallies(i_tally)
     matching_bins(1:t%n_filters) = 1
 
@@ -1680,6 +1681,42 @@ contains
       if (found_bin) then
         ! Calculate track-length estimate of flux
         flux = p % wgt * distance
+!>=============================================================================
+! added by zhengqi 2017.05.09
+! change score_total to a space functional expansion tally
+! only in one dimension for test
+          
+        ! integrate pn in order 0
+          ! NO CHANGE
+        ! pn_xyz1=2.0_8*(xyz1(1)-(ijk_cross(1)-1.0_8))-1.0_8
+        ! pn_xyz0=2.0_8*(xyz0(1)-(ijk_cross(1)-1.0_8))-1.0_8
+        !write(*,*)'========================================================='
+        !write(*,*)'xyz0',xyz0
+        !write(*,*)'xyz1',xyz1
+        !write(*,*)'ijk_cross',ijk_cross
+        !write(*,*)'pn_xyz1',pn_xyz1
+        !write(*,*)'pn_xyz0',pn_xyz0
+        !write(*,*)'distance',distance
+        !write(*,*)'========================================================='
+        !pause
+        ! integrate pn in order 1
+          !flux = flux * 0.5_8*(pn_xyz1**2-pn_xyz0**2)/(pn_xyz1-pn_xyz0)
+        ! integrate pn in order 2
+          !flux = flux * 0.5_8*(pn_xyz1**3-pn_xyz1-(pn_xyz0**3-pn_xyz0))/(pn_xyz1-pn_xyz0)
+        !write(*,*)'flux',flux
+        !write(*,*)'========================================================='
+        
+        !pn_xyz1=(xyz1(1)-(ijk_cross(1)-1.0_8))
+       ! pn_xyz0=(xyz0(1)-(ijk_cross(1)-1.0_8))
+        
+          !flux = flux * (pn_xyz1**2-pn_xyz1-(pn_xyz0**2-pn_xyz0))/(pn_xyz1-pn_xyz0)
+          !flux = flux *(2*pn_xyz1**3-3*pn_xyz1**2+pn_xyz1-(2*pn_xyz0**3-3*pn_xyz0**2+pn_xyz0))/(pn_xyz1-pn_xyz0)
+
+          ! use a more common form
+          pn_xyz0(1:2) = xyz0(1:2) - m % width(1:2) * (ijk_cross(1:2) - 1)
+          pn_xyz1(1:2) = xyz0(1:2) + distance * uvw(1:2) - m % width(1:2) * (ijk_cross(1:2) - 1)
+          flux = flux * (pn_xyz1(1)**2-pn_xyz1(1)-(pn_xyz0(1)**2-pn_xyz0(1)))/(pn_xyz1(1)-pn_xyz0(1))
+!>=============================================================================
 
         ! Determine mesh bin
         matching_bins(i_filter_mesh) = mesh_indices_to_bin(m, ijk_cross)
