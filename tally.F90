@@ -5,7 +5,7 @@ module tally
   use error,            only: fatal_error
   use geometry_header
   use global
-  use math,             only: t_percentile, calc_pn, calc_rn
+  use math,             only: t_percentile, calc_pn, calc_rn,Gauss_Legendre_Integral_Define
   use mesh,             only: get_mesh_bin, bin_to_mesh_indices, &
                               get_mesh_indices, mesh_indices_to_bin, &
                               mesh_intersects_2d, mesh_intersects_3d
@@ -36,7 +36,7 @@ contains
 !===============================================================================
 
   subroutine score_general(p, t, start_index, filter_index, i_nuclide, &
-       atom_density, flux)
+       atom_density, flux, flux_spn)
     type(Particle),    intent(in)    :: p
     type(TallyObject), intent(inout) :: t
     integer,           intent(in)    :: start_index
@@ -44,7 +44,8 @@ contains
     integer,           intent(in)    :: filter_index   ! for % results
     real(8),           intent(in)    :: flux           ! flux estimate
     real(8),           intent(in)    :: atom_density   ! atom/b-cm
-
+    real(8),optional,  intent(in)    :: flux_spn(:,:)       ! space FET tally
+    
     integer :: i                    ! loop index for scoring bins
     integer :: l                    ! loop index for nuclides in material
     integer :: m                    ! loop index for reactions
@@ -67,6 +68,7 @@ contains
     real(8) :: macro_scatt          ! material macro scatt xs
     real(8) :: uvw(3)               ! particle direction
     real(8) :: E                    ! particle energy
+    integer :: x_order, y_order     ! 2D FET tally
 
     i = 0
     SCORE_LOOP: do q = 1, t % n_user_score_bins
@@ -828,6 +830,8 @@ contains
           end if
         end if
 
+      case (SCORE_FLUX_SPN)
+          
       case default
         if (t % estimator == ESTIMATOR_ANALOG) then
           ! Any other score is assumed to be a MT number. Thus, we just need
@@ -981,13 +985,27 @@ contains
                + score * calc_pn(n, p % mu)
         end do
         i = i + t % moment_order(i)
-
-
+      case (SCORE_FLUX_SPN)
+        !score_index = score_index - 1
+        ! Find space expansion order for flux tally
+        num_nm = -1
+        do y_order = 0, t % fet_order
+            do x_order = 0, t % fet_order
+                !num_nm = y_order + (t % fet_order + 1) * x_order
+                num_nm = num_nm + 1
+!$omp critical (score_general_flux_tot_yn)
+                t % results(score_index + num_nm, filter_index) % value = &
+                t % results(score_index + num_nm, filter_index) % value &
+                    + flux_spn(x_order+1, y_order+1)
+!$omp end critical (score_general_flux_tot_yn)
+            enddo
+        enddo
+        i = i + (t % moment_order(i) + 1)**2 - 1
+        
       case default
 !$omp atomic
         t % results(score_index, filter_index) % value = &
              t % results(score_index, filter_index) % value + score
-
 
       end select
     end do SCORE_LOOP
@@ -1363,6 +1381,7 @@ contains
     logical :: found_bin            ! scoring bin found?
     type(TallyObject), pointer :: t
     type(Material),    pointer :: mat
+    integer :: fet_order
 
     ! Determine track-length estimate of flux
     flux = p % wgt * distance
@@ -1379,7 +1398,8 @@ contains
       ! since multiple bins can be scored to with a single track
 
       if (t % find_filter(FILTER_MESH) > 0) then
-        call score_tl_on_mesh(p, i_tally, distance)
+          fet_order = tallies(i_tally) % fet_order
+        call score_tl_on_mesh(p, i_tally, distance,fet_order)
         cycle
       end if
 
@@ -1460,7 +1480,7 @@ contains
 ! these tallies, it is possible to score to multiple mesh cells for each track.
 !===============================================================================
 
-  subroutine score_tl_on_mesh(p, i_tally, d_track)
+  subroutine score_tl_on_mesh(p, i_tally, d_track,fet_order)
 
     type(Particle), intent(in) :: p
     integer,        intent(in) :: i_tally
@@ -1493,6 +1513,17 @@ contains
     type(TallyObject), pointer :: t
     type(RegularMesh), pointer :: m
     type(Material), pointer :: mat
+    !==========================================================================
+    integer :: fet_order
+    real(8) :: flux_spn(0:fet_order,0:fet_order)
+    real(8),allocatable :: x(:), wtt(:) ! for gauss integral
+    real(8) :: pn_xyz0(2), pn_xyz1(2)   ! coordinate transform for FET
+    real(8) :: width=21.42_8                    ! mesh with for FET
+    integer :: order_higher, order_integral, order
+    integer :: fet_order_x, fet_order_y
+    !real(8) :: f                       ! coordinate transform to [-1,1]
+    !real(8) :: xx
+
 
     t => tallies(i_tally)
     matching_bins(1:t%n_filters) = 1
@@ -1683,7 +1714,82 @@ contains
 
         ! Determine mesh bin
         matching_bins(i_filter_mesh) = mesh_indices_to_bin(m, ijk_cross)
+!>=============================================================================
+! 2d FET tally test
+!>=============================================================================
+if (t % fet_score)then
+        pn_xyz0(1:2) = xyz0(1:2) - m % width(1:2) * (ijk_cross(1:2) - 1)
+        !pn_xyz1(1:2) = xyz0(1:2) + distance * uvw(1:2) - m % width(1:2) * (ijk_cross(1:2) - 1)
+        pn_xyz1(1:2) = pn_xyz0(1:2) + distance * uvw(1:2)
+        !allocate(flux_spn(0:t % fet_order, 0:t % fet_order))
+        ! fpn_xyz0(1:2) = TWO * pn_xyz0(1:2)/m % width(1:2)-1
+        ! fpn_xyz1(1:2) = TWO * pn_xyz1(1:2)/m % width(1:2)-1
+        
+        if(uvw(1)==uvw(2).and.uvw(1)==0.0)then
+            
+        do fet_order_x = 0, t % fet_order
+            do fet_order_y = 0 , t % fet_order
+        
+                flux_spn(fet_order_x, fet_order_y) = flux * calc_pn(fet_order_x,fx(pn_xyz0(1)))*calc_pn(fet_order_y,fy(pn_xyz0(2)))
+        
+            enddo
+        enddo
+        
+        
+        elseif(uvw(1)>uvw(2))then
 
+        do fet_order_x = 0, t % fet_order
+            do fet_order_y = 0 , t % fet_order
+            order_higher = max(fet_order_x, fet_order_y)
+            order_integral = int((order_higher+1)/2)+1
+            allocate(x(order_integral),wtt(order_integral))
+                call Gauss_Legendre_Integral_Define(order_integral,X,WTT,pn_xyz0(1),pn_xyz1(1))
+                flux_spn(fet_order_x, fet_order_y) = flux * sum(wtt(:)*calc_pn(fet_order_x,fx((x(:))))* &
+                    calc_pn(fet_order_y,fy(uvw(2)/uvw(1)*(x(:)-pn_xyz0(1))+pn_xyz0(2))))  / (pn_xyz1(1)-pn_xyz0(1))
+            deallocate(x,wtt)
+            enddo
+        enddo
+        
+        elseif(uvw(1)<uvw(2))then
+        
+        do fet_order_x = 0, t % fet_order
+            do fet_order_y = 0 , t % fet_order
+            order_higher = max(fet_order_x, fet_order_y)
+            order_integral = int((order_higher+1)/2)+1
+            allocate(x(order_integral),wtt(order_integral))
+                call Gauss_Legendre_Integral_Define(order_integral,X,WTT,pn_xyz0(2),pn_xyz1(2))
+                flux_spn(fet_order_x, fet_order_y) = flux * sum(wtt(:)*calc_pn(fet_order_y,fx(x(:)))* &
+                    calc_pn(fet_order_x,fy(uvw(1)/uvw(2)*(x(:)-pn_xyz0(2))+pn_xyz0(1))))  / (pn_xyz1(2)-pn_xyz0(2))
+            deallocate(x,wtt)
+            enddo
+        enddo
+        endif
+        
+        !order 1 3
+            ! temp assign
+        !    order_higher = max(fet_order_x, fet_order_y)
+        !    order_integral = int((order_higher+1)/2)+1
+        !    allocate(x(order_integral),wtt(order_integral))
+        !    if(uvw(1)==uvw(2).and.uvw(1)==0.0)then
+        !        flux_spn(fet_order_x, fet_order_y) = flux * calc_pn(fet_order_x,f(pn_xyz0(1)))*calc_pn(fet_order_y,f(pn_xyz0(2)))
+        !    elseif(uvw(1)>uvw(2))then
+        !        call Gauss_Legendre_Integral_Define(order_integral,X,WTT,pn_xyz0(1),pn_xyz1(1))
+        !        flux_spn(fet_order_x, fet_order_y) = flux * sum(wtt(:)*calc_pn(fet_order_x,f((x(:))))* &
+        !            calc_pn(fet_order_y,f(uvw(2)/uvw(1)*(x(:)-pn_xyz0(1))+pn_xyz0(2))))  / (pn_xyz1(1)-pn_xyz0(1))
+        !    elseif(uvw(1)<uvw(2))then
+        !        call Gauss_Legendre_Integral_Define(order_integral,X,WTT,pn_xyz0(2),pn_xyz1(2))
+        !        flux_spn(fet_order_x, fet_order_y) = flux * sum(wtt(:)*calc_pn(fet_order_y,f(x(:)))* &
+        !            calc_pn(fet_order_x,f(uvw(1)/uvw(2)*(x(:)-pn_xyz0(2))+pn_xyz0(1))))  / (pn_xyz1(2)-pn_xyz0(2))
+        !    endif
+        !
+        !    deallocate(x,wtt)
+        !    enddo
+        !enddo
+        !deallocate(flux_spn)
+        
+endif
+
+!>=============================================================================
         ! Determining scoring index
         filter_index = sum((matching_bins(1:t%n_filters) - 1) * t % stride) + 1
 
@@ -1724,7 +1830,7 @@ contains
 
             ! Determine score for each bin
             call score_general(p, t, (b-1)*t % n_score_bins, filter_index, &
-                 i_nuclide, atom_density, flux)
+                 i_nuclide, atom_density, flux, flux_spn)
 
           end do NUCLIDE_BIN_LOOP
         end if
@@ -1734,7 +1840,23 @@ contains
       xyz0 = xyz0 + distance * uvw
 
     end do MESH_LOOP
-
+  contains
+  !>===========================================================================
+  ! for coordinate transform to [-1,1]
+  ! used in FET
+  !>===========================================================================
+  elemental function fx(x)
+      real(8) :: fx
+      real(8), intent(in) :: x
+      fx = TWO * x / m % width(1) !width !- 1.0_8
+  end function
+  
+  elemental function fy(y)
+      real(8) :: fy
+      real(8), intent(in) :: y
+      fy = TWO * y / m % width(2)
+  end function
+  
   end subroutine score_tl_on_mesh
 
 !===============================================================================

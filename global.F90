@@ -404,6 +404,11 @@ module global
   logical :: treat_res_scat = .false. ! is resonance scattering treated?
   integer :: n_res_scatterers_total = 0 ! total number of resonant scatterers
   type(Nuclide0K), allocatable, target :: nuclides_0K(:) ! 0K nuclides info
+  
+  real(8) :: collision_time = 0.0_8
+    real(8) :: geom_time = 0.0_8
+    real(8) ::c_time, g_time,g_time_start,g_time_end,c_time_start,c_time_end
+    integer(8) :: n_collision=0
 
 !$omp threadprivate(micro_xs, material_xs, fission_bank, n_bank, &
 !$omp&              trace, thread_id, current_work, matching_bins)

@@ -35,7 +35,7 @@ contains
 #ifdef _OPENMP
     use omp_lib
 #endif
-
+open(ou,file='output')
     write(UNIT=OUTPUT_UNIT, FMT='(/11(A/))') &
          '       .d88888b.                             888b     d888  .d8888b.', &
          '      d88P" "Y88b                            8888b   d8888 d88P  Y88b', &
@@ -930,6 +930,8 @@ contains
     integer :: i_listing    ! index in xs_listings array
     integer :: n_order      ! loop index for moment orders
     integer :: nm_order     ! loop index for Ynm moment orders
+    integer :: x_order
+    integer :: y_order      ! order for 2D space FET tally
     integer :: unit_tally   ! tallies.out file unit
     real(8) :: t_value      ! t-values for confidence intervals
     real(8) :: alpha        ! significance level for CI
@@ -981,6 +983,7 @@ contains
     score_names(abs(SCORE_DELAYED_NU_FISSION)) = "Delayed-Nu-Fission Rate"
     score_names(abs(SCORE_DELAYED_DECAY))      = "Delayed-Nu-Fission Decay Rate"
     score_names(abs(SCORE_INVERSE_VELOCITY))   = "Flux-Weighted Inverse Velocity"
+    score_names(abs(SCORE_FLUX_SPN))           = "Flux expansion tally in 2D"
 
     ! Create filename for tally output
     filename = trim(path_output) // "tallies.out"
@@ -1145,6 +1148,22 @@ contains
                 end do
               end do
               k = k + (t % moment_order(k) + 1)**2 - 1
+            case (SCORE_FLUX_SPN)
+                score_index = score_index - 1
+                do y_order = 0, t % fet_order ! 0, t % moment_order(k)
+                    do x_order = 0, t % fet_order
+                        score_index = score_index + 1
+                        score_name = 'space P'//trim(to_str(x_order))//trim(to_str(y_order))&
+                            // score_names(abs(t % score_bins(k)))
+                        write(UNIT=unit_tally, FMT='(1X,2A,1X,A,"+/-",A)') &
+                            repeat(" ",indent), score_name, &
+                            to_str(t % results(score_index,filter_index) % sum), &
+                            trim(to_str(t % results(score_index,filter_index)&
+                            % sum_sq))
+                    enddo
+                enddo
+                
+                      
             case default
               if (t % score_bins(k) > 0) then
                 score_name = reaction_name(t % score_bins(k))

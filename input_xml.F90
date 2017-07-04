@@ -3032,7 +3032,10 @@ contains
                                &change of angle (mu) filter unless order is 0.")
             end if
           end if
-
+          if (score_name == 'flux-spn'.and. t % find_filter(FILTER_MESH) == 0) then
+              call fatal_error("Cannot tally "//trim(score_name)//"with no mesh filter")
+          endif
+          
           select case (trim(score_name))
           case ('flux')
             ! Prohibit user from tallying flux for an individual nuclide
@@ -3046,6 +3049,23 @@ contains
               call fatal_error("Cannot tally flux with an outgoing energy &
                    &filter.")
             end if
+            
+          case ('flux-spn') ! for space flux FET tally
+            ! Prohibit user from tallying flux for an individual nuclide
+            if (.not. (t % n_nuclide_bins == 1 .and. &
+                 t % nuclide_bins(1) == -1)) then
+              call fatal_error("Cannot tally flux for an individual nuclide.")
+                 end if
+                 
+            if (t % find_filter(FILTER_ENERGYOUT) > 0) then
+              call fatal_error("Cannot tally flux with an outgoing energy &
+                   &filter.")
+            end if    
+            t % score_bins(j : j + n_bins - 1) = SCORE_FLUX_SPN
+            t % moment_order(j : j + n_bins - 1) = n_order
+            j = j + n_bins  - 1
+            t % fet_score = .true.
+            t % fet_order = n_order
           case ('flux-yn')
             ! Prohibit user from tallying flux for an individual nuclide
             if (.not. (t % n_nuclide_bins == 1 .and. &

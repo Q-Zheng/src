@@ -16,7 +16,7 @@ module simulation
   use output,       only: write_message, header, print_columns, &
                           print_batch_keff, print_generation
   use particle_header, only: Particle
-  use random_lcg,   only: set_particle_seed
+  use random_lcg,   only: set_particle_seed, prn
   use source,       only: initialize_source
   use state_point,  only: write_state_point, write_source_point
   use string,       only: to_str
@@ -83,10 +83,10 @@ contains
 !$omp parallel do schedule(static) firstprivate(p)
         PARTICLE_LOOP: do i_work = 1, work
           current_work = i_work
-
+!write(*,*)'work',work,'i_work',i_work
           ! grab source particle from bank
           call initialize_history(p, current_work)
-
+!write(1,*)'p%xyz',p%coord(1)%xyz,'p%E',p%E
           ! transport particle
           call transport(p)
 
@@ -101,11 +101,11 @@ contains
       end do GENERATION_LOOP
 
       call finalize_batch()
-
+!pause!write(1,*)keff
       if (satisfy_triggers) exit BATCH_LOOP
 
     end do BATCH_LOOP
-
+  write(*,*)'geom_time',geom_time,'collision_time',collision_time,'n_collision',n_collision
     call time_active % stop()
 
     ! ==========================================================================
@@ -135,11 +135,10 @@ contains
 
     ! set identifier for particle
     p % id = work_index(rank) + index_source
-
+!write(*,*)'p%id',p%id,'work_index(:)',work_index(:),'rank',rank,'work_index(0)',work_index(0),'index_source',index_source;pause
     ! set random number seed
     particle_seed = (overall_gen - 1)*n_particles + p % id
     call set_particle_seed(particle_seed)
-
     ! set particle trace
     trace = .false.
     if (current_batch == trace_batch .and. current_gen == trace_gen .and. &

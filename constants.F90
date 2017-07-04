@@ -261,7 +261,7 @@ module constants
        EVENT_ABSORB  =  2
 
   ! Tally score type
-  integer, parameter :: N_SCORE_TYPES = 23
+  integer, parameter :: N_SCORE_TYPES = 24
   integer, parameter :: &
        SCORE_FLUX               = -1,  & ! flux
        SCORE_TOTAL              = -2,  & ! total reaction rate
@@ -285,15 +285,17 @@ module constants
        SCORE_EVENTS             = -20, & ! number of events
        SCORE_DELAYED_NU_FISSION = -21, & ! delayed neutron production rate
        SCORE_INVERSE_VELOCITY   = -22, & ! flux-weighted inverse velocity
-       SCORE_DELAYED_DECAY      = -23    ! delayed neutron decay rate
+       SCORE_DELAYED_DECAY      = -23, & ! delayed neutron decay rate
+       SCORE_FLUX_SPN           = -24    ! space flux FET tally
 
   ! Maximum scattering order supported
   integer, parameter :: MAX_ANG_ORDER = 10
 
   ! Names of *-PN & *-YN scores (MOMENT_STRS) and *-N moment scores
   character(*), parameter :: &
-       MOMENT_STRS(6)    = (/ "scatter-p   ",   &
+       MOMENT_STRS(7)    = (/ "scatter-p   ",   &
                               "nu-scatter-p",   &
+                              "flux-sp     ",   &   ! for flux FET but has 2*n+1 values
                               "flux-y      ",   &
                               "total-y     ",   &
                               "scatter-y   ",   &

@@ -16,7 +16,7 @@ module tracking
                              score_collision_tally, score_surface_current
   use track_output,    only: initialize_particle_track, write_particle_track, &
                              add_particle_track, finalize_particle_track
-
+use timer_header
   implicit none
 
 contains
@@ -39,7 +39,7 @@ contains
     real(8) :: d_collision            ! sampled distance to collision
     real(8) :: distance               ! distance particle travels
     logical :: found_cell             ! found cell which particle is in?
-
+type(Timer) :: g_time, col_time
     ! Display message if high verbosity or trace is on
     if (verbosity >= 9 .or. trace) then
       call write_message("Simulating Particle " // trim(to_str(p % id)))
@@ -86,9 +86,12 @@ contains
       if (p % material /= p % last_material) call calculate_xs(p)
 
       ! Find the distance to the nearest boundary
+      call g_time%reset()
+      call g_time%start()
       call distance_to_boundary(p, d_boundary, surface_crossed, &
            lattice_translation, next_level)
-
+call g_time%stop()
+geom_time = geom_time+g_time%get_value()
       ! Sample a distance to collision
       if (material_xs % total == ZERO) then
         d_collision = INFINITY
@@ -150,9 +153,12 @@ contains
 
         ! Clear surface component
         p % surface = NONE
-
+call col_time%reset()
+call col_time%start()
         call collision(p)
-
+call col_time%stop()
+        collision_time = collision_time + col_time%get_value()
+        n_collision=n_collision+1
         ! Score collision estimator tallies -- this is done after a collision
         ! has occurred rather than before because we need information on the
         ! outgoing energy for any tallies with an outgoing energy filter

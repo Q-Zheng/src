@@ -107,6 +107,9 @@ module tally_header
     integer, allocatable :: moment_order(:)
     integer              :: n_user_score_bins = 0
 
+    logical :: fet_score = .false.
+    integer :: fet_order = 0
+    
     ! Results for each bin -- the first dimension of the array is for scores
     ! (e.g. flux, total reaction rate, fission reaction rate, etc.) and the
     ! second dimension of the array is for the combination of filters
